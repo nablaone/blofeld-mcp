@@ -76,3 +76,24 @@ func playTestNotes(blo *Blofeld, channel uint8) error {
 	}
 	return nil
 }
+
+func playMinor7Chord(blo *Blofeld, channel uint8) error {
+	root := midi.C(4)
+	chord := []uint8{root, root + 3, root + 7, root + 10}
+
+	for _, n := range chord {
+		if err := blo.Send(midi.NoteOn(channel, n, 100)); err != nil {
+			return fmt.Errorf("note on failed for %d: %w", n, err)
+		}
+	}
+
+	time.Sleep(10000 * time.Millisecond)
+
+	for _, n := range chord {
+		if err := blo.Send(midi.NoteOff(channel, n)); err != nil {
+			return fmt.Errorf("note off failed for %d: %w", n, err)
+		}
+	}
+
+	return nil
+}

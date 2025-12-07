@@ -113,6 +113,16 @@ func runMCP(inPortIdx int, portIdx int, blo *Blofeld, blofeldChannel uint8) {
 		return mcp.NewToolResultText("Test notes played successfully."), nil
 	})
 
+	minor7Tool := mcp.NewTool("blofeld_play-minor7",
+		mcp.WithDescription("Plays a C minor 7 chord on the Blofeld."),
+	)
+	s.AddTool(minor7Tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		if err := playMinor7Chord(blo, blofeldChannel); err != nil {
+			return nil, fmt.Errorf("failed to play minor 7 chord: %v", err)
+		}
+		return mcp.NewToolResultText("C minor 7 chord played successfully."), nil
+	})
+
 	log.Println("Starting Blofeld MCP server...")
 
 	if err := server.ServeStdio(s); err != nil {
