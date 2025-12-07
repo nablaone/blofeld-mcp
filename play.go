@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
+	"strings"
 	"time"
+	"unicode"
 
 	"gitlab.com/gomidi/midi/v2"
 )
@@ -96,4 +99,104 @@ func playMinor7Chord(blo *Blofeld, channel uint8) error {
 	}
 
 	return nil
+}
+
+func playNotesFromText(blo *Blofeld, channel uint8, notesText string) error {
+	tokens := strings.FieldsFunc(notesText, func(r rune) bool {
+		return unicode.IsSpace(r) || r == ',' || r == ';' || r == '|'
+	})
+	if len(tokens) == 0 {
+		return fmt.Errorf("no notes provided")
+	}
+
+	for _, tok := range tokens {
+		n, isRest, err := parseNoteToken(tok)
+		if err != nil {
+			return fmt.Errorf("invalid note %q: %w", tok, err)
+		}
+
+		if isRest {
+			time.Sleep(360 * time.Millisecond)
+			continue
+		}
+
+		if err := blo.Send(midi.NoteOn(channel, n, 100)); err != nil {
+			return fmt.Errorf("note on failed for %d: %w", n, err)
+		}
+		time.Sleep(300 * time.Millisecond)
+		if err := blo.Send(midi.NoteOff(channel, n)); err != nil {
+			return fmt.Errorf("note off failed for %d: %w", n, err)
+		}
+		time.Sleep(60 * time.Millisecond)
+	}
+
+	return nil
+}
+
+func parseNoteToken(tok string) (uint8, bool, error) {
+	t := strings.TrimSpace(tok)
+	if t == "" {
+		return 0, false, fmt.Errorf("empty token")
+	}
+
+	if strings.EqualFold(t, "r") || strings.EqualFold(t, "rest") {
+		return 0, true, nil
+	}
+
+	if len(t) < 2 {
+		return 0, false, fmt.Errorf("too short")
+	}
+
+	base := strings.ToUpper(string(t[0]))
+	accidental := 0
+	rest := t[1:]
+
+	if len(rest) > 0 {
+		switch rest[0] {
+		case '#':
+			accidental = 1
+			rest = rest[1:]
+		case 'b', 'B':
+			accidental = -1
+			rest = rest[1:]
+		}
+	}
+
+	if rest == "" {
+		return 0, false, fmt.Errorf("missing octave")
+	}
+
+	octave, err := strconv.Atoi(rest)
+	if err != nil {
+		return 0, false, fmt.Errorf("invalid octave: %w", err)
+	}
+
+	var semitone int
+	switch base {
+	case "C":
+		semitone = 0
+	case "D":
+		semitone = 2
+	case "E":
+		semitone = 4
+	case "F":
+		semitone = 5
+	case "G":
+		semitone = 7
+	case "A":
+		semitone = 9
+	case "B":
+		semitone = 11
+	default:
+		return 0, false, fmt.Errorf("invalid note letter %q", base)
+	}
+
+	semitone += accidental
+	n := 12*(octave+1) + semitone
+
+	if n < 0 || n > 127 {
+		return 0, false, fmt.Errorf("MIDI note out of range: %d", n)
+	}
+
+	return uint8(n), false, nil
 }

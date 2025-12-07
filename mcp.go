@@ -123,6 +123,22 @@ func runMCP(inPortIdx int, portIdx int, blo *Blofeld, blofeldChannel uint8) {
 		return mcp.NewToolResultText("C minor 7 chord played successfully."), nil
 	})
 
+	playTextNotesTool := mcp.NewTool("blofeld_play-notes-text",
+		mcp.WithDescription("Plays a melody from a text list of notes (e.g., \"C4 Eb4 G4 Bb4\"), supports rests."),
+		mcp.WithString("notes", mcp.Required(), mcp.Description("Space/comma/semicolon-separated notes in scientific pitch (e.g., C4, D#5, Bb3) and rests (R or rest).")),
+	)
+	s.AddTool(playTextNotesTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		notesText, err := request.RequireString("notes")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		if err := playNotesFromText(blo, blofeldChannel, notesText); err != nil {
+			return nil, fmt.Errorf("failed to play notes: %v", err)
+		}
+		return mcp.NewToolResultText(fmt.Sprintf("Played notes: %s", notesText)), nil
+	})
+
 	log.Println("Starting Blofeld MCP server...")
 
 	if err := server.ServeStdio(s); err != nil {
