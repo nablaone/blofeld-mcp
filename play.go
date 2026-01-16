@@ -12,18 +12,16 @@ import (
 	"gitlab.com/gomidi/midi/v2"
 )
 
-func singleTest(inPortIdx int, portIdx int, blo *Blofeld, blofeldChannel uint8) {
+func singleTest(blo *Blofeld) {
 
-	if err := playTestNotes(blo, blofeldChannel); err != nil {
+	if err := playTestNotes(blo); err != nil {
 		log.Fatalf("failed to play test notes: %v", err)
 	}
-
-	log.Printf("Connected to Blofeld on port index %d (channel %d).\n", portIdx, blofeldChannel+1)
 
 	var Bank = "H"
 	var Program = 128
 
-	p, devID, err := blo.RequestPatchDump(midi.GetInPorts()[inPortIdx], Bank, Program)
+	p, devID, err := blo.RequestPatchDump(Bank, Program)
 	if err != nil {
 		log.Fatalf("failed to read patch: %v", err)
 	}
@@ -42,16 +40,16 @@ func singleTest(inPortIdx int, portIdx int, blo *Blofeld, blofeldChannel uint8) 
 
 	log.Printf("Patch as JSON:\n%s\n", asJson)
 
-	if err := blo.SendPatch(Bank, Program, p, devID); err != nil {
+	if err := blo.SendPatch(Bank, Program, p); err != nil {
 		log.Fatalf("failed to send patch: %v", err)
 	}
 
-	if err := playTestNotes(blo, blofeldChannel); err != nil {
+	if err := playTestNotes(blo); err != nil {
 		log.Fatalf("failed to play test notes: %v", err)
 	}
 
 	log.Println("Reading again.")
-	p2, devID, err := blo.RequestPatchDump(midi.GetInPorts()[inPortIdx], Bank, Program)
+	p2, devID, err := blo.RequestPatchDump(Bank, Program)
 	if err != nil {
 		log.Fatalf("failed to read patch: %v", err)
 	}
@@ -66,26 +64,26 @@ func singleTest(inPortIdx int, portIdx int, blo *Blofeld, blofeldChannel uint8) 
 	fmt.Println("Done.")
 }
 
-func playTestNotes(blo *Blofeld, channel uint8) error {
+func playTestNotes(blo *Blofeld) error {
 	notes := []uint8{midi.C(4), midi.E(4), midi.G(4)}
 	for _, n := range notes {
-		if err := blo.Send(midi.NoteOn(channel, n, 100)); err != nil {
+		if err := blo.Send(midi.NoteOn(blo.Channel, n, 100)); err != nil {
 			return fmt.Errorf("note on failed for %d: %w", n, err)
 		}
 		time.Sleep(200 * time.Millisecond)
-		if err := blo.Send(midi.NoteOff(channel, n)); err != nil {
+		if err := blo.Send(midi.NoteOff(blo.Channel, n)); err != nil {
 			return fmt.Errorf("note off failed for %d: %w", n, err)
 		}
 	}
 	return nil
 }
 
-func playMinor7Chord(blo *Blofeld, channel uint8) error {
+func playMinor7Chord(blo *Blofeld) error {
 	root := midi.C(4)
 	chord := []uint8{root, root + 3, root + 7, root + 10}
 
 	for _, n := range chord {
-		if err := blo.Send(midi.NoteOn(channel, n, 100)); err != nil {
+		if err := blo.Send(midi.NoteOn(blo.Channel, n, 100)); err != nil {
 			return fmt.Errorf("note on failed for %d: %w", n, err)
 		}
 	}
@@ -93,7 +91,7 @@ func playMinor7Chord(blo *Blofeld, channel uint8) error {
 	time.Sleep(10000 * time.Millisecond)
 
 	for _, n := range chord {
-		if err := blo.Send(midi.NoteOff(channel, n)); err != nil {
+		if err := blo.Send(midi.NoteOff(blo.Channel, n)); err != nil {
 			return fmt.Errorf("note off failed for %d: %w", n, err)
 		}
 	}
@@ -101,7 +99,7 @@ func playMinor7Chord(blo *Blofeld, channel uint8) error {
 	return nil
 }
 
-func playNotesFromText(blo *Blofeld, channel uint8, notesText string) error {
+func playNotesFromText(blo *Blofeld, notesText string) error {
 	tokens := strings.FieldsFunc(notesText, func(r rune) bool {
 		return unicode.IsSpace(r) || r == ',' || r == ';' || r == '|'
 	})
@@ -120,11 +118,11 @@ func playNotesFromText(blo *Blofeld, channel uint8, notesText string) error {
 			continue
 		}
 
-		if err := blo.Send(midi.NoteOn(channel, n, 100)); err != nil {
+		if err := blo.Send(midi.NoteOn(blo.Channel, n, 100)); err != nil {
 			return fmt.Errorf("note on failed for %d: %w", n, err)
 		}
 		time.Sleep(300 * time.Millisecond)
-		if err := blo.Send(midi.NoteOff(channel, n)); err != nil {
+		if err := blo.Send(midi.NoteOff(blo.Channel, n)); err != nil {
 			return fmt.Errorf("note off failed for %d: %w", n, err)
 		}
 		time.Sleep(60 * time.Millisecond)

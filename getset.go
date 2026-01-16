@@ -6,18 +6,14 @@ import (
 	"io"
 	"log"
 	"os"
-
-	"gitlab.com/gomidi/midi/v2"
 )
 
-func getPatch(inPortIdx int, portIdx int, blo *Blofeld, blofeldChannel uint8) {
-
-	log.Printf("Connected to Blofeld on port index %d (channel %d).\n", portIdx, blofeldChannel+1)
+func getPatch(blo *Blofeld) {
 
 	var Bank = "H"
 	var Program = 128
 
-	p, devID, err := blo.RequestPatchDump(midi.GetInPorts()[inPortIdx], Bank, Program)
+	p, devID, err := blo.RequestPatchDump(Bank, Program)
 	if err != nil {
 		log.Fatalf("failed to read patch: %v", err)
 	}
@@ -32,8 +28,7 @@ func getPatch(inPortIdx int, portIdx int, blo *Blofeld, blofeldChannel uint8) {
 	fmt.Println(string(asJson))
 }
 
-func setPatch(inPortIdx int, portIdx int, blo *Blofeld, blofeldChannel uint8, devID byte) {
-	log.Printf("Connected to Blofeld on port index %d (channel %d).\n", portIdx, blofeldChannel+1)
+func setPatch(blo *Blofeld) {
 
 	patch := &Patch{}
 
@@ -49,7 +44,7 @@ func setPatch(inPortIdx int, portIdx int, blo *Blofeld, blofeldChannel uint8, de
 	var Bank = "H"
 	var Program = 128
 
-	if err := blo.SendPatch(Bank, Program, patch, devID); err != nil {
+	if err := blo.SendPatch(Bank, Program, patch); err != nil {
 		log.Fatalf("failed to send patch: %v", err)
 	}
 }

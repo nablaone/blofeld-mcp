@@ -10,10 +10,9 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-	"gitlab.com/gomidi/midi/v2"
 )
 
-func runMCP(inPortIdx int, portIdx int, blo *Blofeld, blofeldChannel uint8) {
+func runMCP(blo *Blofeld) {
 
 	s := server.NewMCPServer(
 		"Blofeld MCP",
@@ -48,7 +47,7 @@ func runMCP(inPortIdx int, portIdx int, blo *Blofeld, blofeldChannel uint8) {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		patch, _, err := blo.RequestPatchDump(midi.GetInPorts()[inPortIdx], bank, program)
+		patch, _, err := blo.RequestPatchDump(bank, program)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read patch: %v", err)
 		}
@@ -96,7 +95,7 @@ func runMCP(inPortIdx int, portIdx int, blo *Blofeld, blofeldChannel uint8) {
 			return nil, fmt.Errorf("failed to unmarshal patch JSON: %v", err)
 		}
 
-		if err := blo.SendPatch(bank, program, &patch, 0x00); err != nil {
+		if err := blo.SendPatch(bank, program, &patch); err != nil {
 			return nil, fmt.Errorf("failed to send patch: %v", err)
 		}
 
@@ -107,7 +106,7 @@ func runMCP(inPortIdx int, portIdx int, blo *Blofeld, blofeldChannel uint8) {
 		mcp.WithDescription("Plays test notes on the Blofeld synthesizer."),
 	)
 	s.AddTool(playNotesTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		if err := playTestNotes(blo, blofeldChannel); err != nil {
+		if err := playTestNotes(blo); err != nil {
 			return nil, fmt.Errorf("failed to play test notes: %v", err)
 		}
 		return mcp.NewToolResultText("Test notes played successfully."), nil
@@ -117,7 +116,7 @@ func runMCP(inPortIdx int, portIdx int, blo *Blofeld, blofeldChannel uint8) {
 		mcp.WithDescription("Plays a C minor 7 chord on the Blofeld."),
 	)
 	s.AddTool(minor7Tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		if err := playMinor7Chord(blo, blofeldChannel); err != nil {
+		if err := playMinor7Chord(blo); err != nil {
 			return nil, fmt.Errorf("failed to play minor 7 chord: %v", err)
 		}
 		return mcp.NewToolResultText("C minor 7 chord played successfully."), nil
@@ -133,7 +132,7 @@ func runMCP(inPortIdx int, portIdx int, blo *Blofeld, blofeldChannel uint8) {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		if err := playNotesFromText(blo, blofeldChannel, notesText); err != nil {
+		if err := playNotesFromText(blo, notesText); err != nil {
 			return nil, fmt.Errorf("failed to play notes: %v", err)
 		}
 		return mcp.NewToolResultText(fmt.Sprintf("Played notes: %s", notesText)), nil

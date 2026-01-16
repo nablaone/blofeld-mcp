@@ -7,6 +7,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"strings"
 	"time"
 
 	"gitlab.com/gomidi/midi/v2"
@@ -785,43 +786,120 @@ func (p *Patch) ToSNDD(deviceID byte, bank byte, program byte) ([]byte, error) {
 }
 
 type Blofeld struct {
-	devID byte
-	out   drivers.Out
+	devID     byte
+	out       drivers.Out
+	opened    bool
+	inPortIdx int
+	portIdx   int
+	Channel   uint8
 }
 
-func OpenBlofeld(devID byte, portIndex int) (*Blofeld, func(), error) {
+func NewBlofeld() *Blofeld {
+	return &Blofeld{
+		Channel: 4, // Default to channel 5 (0-based value 4)
+	}
+}
+
+func (b *Blofeld) ensureOpened() error {
+	const (
+
+		// Blofeld SysEx device ID often matches the MIDI channel (5 -> 0x04).
+		blofeldDeviceID byte = 0x00
+		nameHint             = "blofeld"
+	)
+
+	if !b.opened {
+		portIdx, err := findOutPort(nameHint)
+		if err != nil {
+			log.Fatalf("could not find Blofeld MIDI out port: %v", err)
+		}
+
+		inPortIdx, err := findInPort(nameHint)
+		if err != nil {
+			log.Fatalf("could not find Blofeld MIDI in port: %v", err)
+		}
+
+		if err := b.open(blofeldDeviceID, portIdx); err != nil {
+			return fmt.Errorf("failed to open Blofeld MIDI out port: %w", err)
+		}
+
+		b.inPortIdx = inPortIdx
+		b.portIdx = portIdx
+	}
+	return nil
+}
+
+func findOutPort(nameFragment string) (int, error) {
+	outs := midi.GetOutPorts()
+	if len(outs) == 0 {
+		return -1, fmt.Errorf("no MIDI outputs available")
+	}
+
+	lower := strings.ToLower(nameFragment)
+	for _, out := range outs {
+		if strings.Contains(strings.ToLower(out.String()), lower) {
+			return out.Number(), nil
+		}
+	}
+
+	return -1, fmt.Errorf("no MIDI output contains %q", nameFragment)
+}
+
+func findInPort(nameFragment string) (int, error) {
+	ins := midi.GetInPorts()
+	if len(ins) == 0 {
+		return -1, fmt.Errorf("no MIDI inputs available")
+	}
+
+	lower := strings.ToLower(nameFragment)
+	for _, in := range ins {
+		if strings.Contains(strings.ToLower(in.String()), lower) {
+			return in.Number(), nil
+		}
+	}
+
+	return -1, fmt.Errorf("no MIDI input contains %q", nameFragment)
+}
+
+func (b *Blofeld) Close() {
+	if b.opened {
+		_ = b.out.Close()
+		drivers.Close()
+		b.opened = false
+		log.Println("Closed Blofeld MIDI output")
+	}
+}
+
+func (b *Blofeld) open(devID byte, portIndex int) error {
 	outs, err := drivers.Outs()
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 
 	if portIndex < 0 || portIndex >= len(outs) {
-		return nil, nil, fmt.Errorf("output port index %d out of range", portIndex)
+		return fmt.Errorf("output port index %d out of range", portIndex)
 	}
 
 	out := outs[portIndex]
 	if err := out.Open(); err != nil {
-		return nil, nil, err
+		return err
 	}
 
-	closer := func() {
-		_ = out.Close()
-		drivers.Close()
-	}
 	log.Println("Opened Blofeld MIDI output port", devID, out.String())
-	return &Blofeld{
-		devID: devID,
-		out:   out,
-	}, closer, nil
+
+	b.devID = devID
+	b.out = out
+	b.opened = true
+	return nil
 }
 
 // Send transmits a MIDI message to the Blofeld output port.
 func (b *Blofeld) Send(msg midi.Message) error {
-	if !b.out.IsOpen() {
-		if err := b.out.Open(); err != nil {
-			return err
-		}
+
+	if err := b.ensureOpened(); err != nil {
+		return err
 	}
+
 	return b.out.Send(msg.Bytes())
 }
 
@@ -831,7 +909,14 @@ func (b *Blofeld) SendSysEx(data []byte) error {
 }
 
 // RequestPatchDump asks Blofeld for a single program and waits for SNDD.
-func (b *Blofeld) RequestPatchDump(inPort drivers.In, bank string, program int) (*Patch, byte, error) {
+func (b *Blofeld) RequestPatchDump(bank string, program int) (*Patch, byte, error) {
+
+	if err := b.ensureOpened(); err != nil {
+		return nil, 0, err
+	}
+
+	inPort := midi.GetInPorts()[b.inPortIdx]
+
 	bankByte, err := bankToByte(bank)
 	if err != nil {
 		return nil, 0, err
@@ -918,7 +1003,12 @@ func parseSNDD(msg midi.Message) (*Patch, byte, error) {
 }
 
 // SendPatch transmits a patch to the given bank/program.
-func (b *Blofeld) SendPatch(bank string, program int, p *Patch, devID byte) error {
+func (b *Blofeld) SendPatch(bank string, program int, p *Patch) error {
+
+	if err := b.ensureOpened(); err != nil {
+		return err
+	}
+
 	bankByte, err := bankToByte(bank)
 	if err != nil {
 		return err
@@ -928,7 +1018,7 @@ func (b *Blofeld) SendPatch(bank string, program int, p *Patch, devID byte) erro
 	}
 	progByte := byte(program - 1)
 
-	payload, err := p.ToSNDD(devID, bankByte, progByte)
+	payload, err := p.ToSNDD(b.devID, bankByte, progByte)
 	if err != nil {
 		return fmt.Errorf("failed to build SNDD payload: %w", err)
 	}
