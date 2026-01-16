@@ -2,11 +2,14 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"math/rand"
 	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -1002,8 +1005,66 @@ func parseSNDD(msg midi.Message) (*Patch, byte, error) {
 	return patch, msg[3], err
 }
 
+// normalizePatchName converts a patch name into a filesystem-safe string.
+func normalizePatchName(name string) string {
+	// Replace spaces and special characters with underscores
+	reg := regexp.MustCompile(`[^a-zA-Z0-9-_]+`)
+	normalized := reg.ReplaceAllString(name, "_")
+	// Remove leading/trailing underscores
+	normalized = strings.Trim(normalized, "_")
+	// Convert to lowercase
+	normalized = strings.ToLower(normalized)
+	// If empty after normalization, use a default name
+	if normalized == "" {
+		normalized = "unnamed"
+	}
+	return normalized
+}
+
+// savePatchToFile stores the patch as JSON in the patches directory.
+func savePatchToFile(p *Patch) error {
+	// Get the directory where the binary is located
+	execPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to get executable path: %w", err)
+	}
+	execDir := filepath.Dir(execPath)
+
+	// Ensure patches directory exists relative to binary location
+	patchesDir := filepath.Join(execDir, "patches")
+	if err := os.MkdirAll(patchesDir, 0755); err != nil {
+		return fmt.Errorf("failed to create patches directory: %w", err)
+	}
+
+	// Create filename with datetime prefix, normalized patch name, and .json suffix
+	timestamp := time.Now().Format("20060102_150405")
+	normalizedName := normalizePatchName(p.Name)
+	filename := fmt.Sprintf("%s_%s.json", timestamp, normalizedName)
+	filePath := filepath.Join(patchesDir, filename)
+
+	// Marshal patch to JSON with indentation
+	jsonData, err := json.MarshalIndent(p, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal patch to JSON: %w", err)
+	}
+
+	// Write to file
+	if err := os.WriteFile(filePath, jsonData, 0644); err != nil {
+		return fmt.Errorf("failed to write patch file: %w", err)
+	}
+
+	log.Printf("Saved patch to %s", filePath)
+	return nil
+}
+
 // SendPatch transmits a patch to the given bank/program.
 func (b *Blofeld) SendPatch(bank string, program int, p *Patch) error {
+
+	// Save patch to file before sending
+	if err := savePatchToFile(p); err != nil {
+		log.Printf("Warning: failed to save patch to file: %v", err)
+		// Continue with sending even if save fails
+	}
 
 	if err := b.ensureOpened(); err != nil {
 		return err
