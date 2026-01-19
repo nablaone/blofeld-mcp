@@ -1,17 +1,39 @@
-# Blofeld MCP
+# Motivation
 
-Go utilities and an MCP server for the Waldorf Blofeld synthesizer. The tools find your Blofeld MIDI ports, dump and send patches, and expose note/patch actions to Model Context Protocol clients.
+This is an experimental repository. Waldorf Blofeld is a great synthesizer, but the user interface is quite complex. There are several patch editors, even hardware solutions (dedicated controllers). I wanted to try something different. Why not use an LLM to create a patch? It doesn't need to be a perfect solution. A better "randomizer" will be good enough. 
 
-- SysEx reference: `waldorf_blofeld_sysex_documentation_v.1.04.txt` (share the URL to this file when chatting with an AI so it can cite the spec).
-- Synth basics: 3 oscillators with wavetables/VA shapes, dual multi-mode filters, 3 envelopes, 3 LFOs, 16-slot mod matrix, arpeggiator, and two FX. Desktop, monotimbral per MIDI channel; factory listens on channel 5 (0-based 4).
+# Demo
 
-## Quick start
-- Build: `go build -o blofeldmcp .`
-- Run MCP server (stdio): `./blofeldmcp mcp`
+TBD
 
-## Using with AI chats
-- Claude: add an MCP server entry that runs `./blofeldmcp mcp`; Claude can call `blofeld_describe-sysex`, `blofeld_get-patch`, `blofeld_send-patch`, and note-play tools.
-- ChatGPT MCP: add a custom MCP server pointing to `./blofeldmcp mcp`; grant MIDI access when prompted and let the model call the tools.
+## Build 
+
+You'll need the GoLang SDK to build the code.
+
+Build: 
+
+```
+go build  .
+```
+
+
+## Setup 
+
+Edit `claude_desktop_config.json` and add `blofeldcmp`:
+
+```
+{
+    "mcpServers": {
+
+        "blofeldmcp": {
+            "command": "/Users/youruser/blofeld-mcp/blofeldmcp",
+            "args": ["mcp"]
+        }
+    }
+}
+
+```
+
 
 ## Debug helpers
 - Test notes: `./blofeldmcp play`
