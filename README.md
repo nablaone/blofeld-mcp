@@ -4,7 +4,8 @@ This is an experimental repository. Waldorf Blofeld is a great synthesizer, but 
 
 # Demo
 
-TBD
+
+[![Demo](https://img.youtube.com/vi/2UmedI6hOUk/0.jpg)](https://www.youtube.com/watch?v=2UmedI6hOUk)
 
 ## Build 
 
